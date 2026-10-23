@@ -64,5 +64,5 @@ jobs:
           scp -r \
             -i ~/.ssh/deploy_key \
             -o StrictHostKeyChecking=yes \
-            ./deploy/. \
-            "$SSH_USER@$SSH_HOST:/var/www/html/"
+            ./deploy/webfiles. \
+            "$SSH_USER@$SSH_HOST:~/"
