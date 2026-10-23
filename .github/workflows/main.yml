@@ -25,7 +25,7 @@ jobs:
           node-version: '22'
 
       - name: Run HTMLHint
-        run: npx --yes htmlhint "**/*.html"
+        run: npx --yes htmlhint "webfiles/**/*.html"
 
   deploy:
     name: Deploy to Azure VM
@@ -50,11 +50,16 @@ jobs:
           printf '%s\n' "$SSH_HOST_KEY" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
-      - name: Prepare deployment files
+      - name: Create remote directory
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
         run: |
-          mkdir -p deploy
-          git archive HEAD | tar -x -C deploy
-          rm -rf deploy/.github
+          ssh \
+            -i ~/.ssh/deploy_key \
+            -o StrictHostKeyChecking=yes \
+            "$SSH_USER@$SSH_HOST" \
+            'mkdir -p "$HOME/webfiles"'
 
       - name: Copy website using SCP
         env:
@@ -64,5 +69,5 @@ jobs:
           scp -r \
             -i ~/.ssh/deploy_key \
             -o StrictHostKeyChecking=yes \
-            ./deploy/webfiles. \
-            "$SSH_USER@$SSH_HOST:~/"
+            ./webfiles/. \
+            "$SSH_USER@$SSH_HOST:/home/claude/webfiles/"
