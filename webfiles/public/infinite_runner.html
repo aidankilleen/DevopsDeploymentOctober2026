@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+    <title>Infinite Runner - DevOps Demo Site</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        /* Stop pull-to-refresh and rubber-band overscroll swallowing a downward drag. */
+        html, body {
+            overscroll-behavior: none;
+        }
+
+        /* Touch guard on the wrapper, not the canvas: the padding keeps the playfield
+           clear of the screen edge, where iOS claims swipes for history navigation. */
+        #playfield {
+            display: block;
+            padding: 4px 16px;
+            touch-action: none;
+            overscroll-behavior: none;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+        }
+
+        .btn {
+            touch-action: manipulation;
+        }
+
+        #track {
+            background: #111;
+            border-radius: .5rem;
+            width: 100%;
+            max-width: 800px;
+            height: auto;
+            touch-action: none;
+            display: block;
+        }
+
+        .stat-value {
+            font-variant-numeric: tabular-nums;
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="index.html">DevOps Demo</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="mainNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><a class="nav-link" href="index.html">Home</a></li>
+                    <li class="nav-item"><a class="nav-link" href="about.html">About</a></li>
+                    <li class="nav-item"><a class="nav-link" href="contact.html">Contact</a></li>
+                    <li class="nav-item"><a class="nav-link" href="users.html">Users</a></li>
+                    <li class="nav-item"><a class="nav-link active" href="games.html">Games</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container my-5">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="games.html">Games</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Infinite Runner</li>
+            </ol>
+        </nav>
+
+        <h1>Infinite Runner</h1>
+        <p class="lead">Jump the blocks, duck the drones. It only gets faster.</p>
+
+        <div id="playfield">
+            <canvas id="track" width="800" height="320"></canvas>
+        </div>
+
+        <div class="row g-4 mt-1">
+            <div class="col-lg-6">
+                <div class="row g-3">
+                    <div class="col-4">
+                        <div class="border rounded p-3">
+                            <div class="text-muted small text-uppercase">Score</div>
+                            <div class="stat-value" id="score">0</div>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="border rounded p-3">
+                            <div class="text-muted small text-uppercase">Best</div>
+                            <div class="stat-value" id="best">0</div>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="border rounded p-3">
+                            <div class="text-muted small text-uppercase">Speed</div>
+                            <div class="stat-value" id="speed">1.0&times;</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-grid gap-2 d-sm-flex mt-3">
+                    <button class="btn btn-primary" id="pauseBtn" type="button">Pause</button>
+                    <button class="btn btn-outline-secondary" id="restartBtn" type="button">Restart</button>
+                </div>
+            </div>
+
+            <div class="col-lg-6">
+                <div class="row">
+                    <div class="col-sm-6">
+                        <h6 class="text-uppercase text-muted small">Touch</h6>
+                        <ul class="list-unstyled small mb-3">
+                            <li>Tap the <strong>left</strong> of the track to jump</li>
+                            <li>Hold to jump higher</li>
+                            <li>Hold the <strong>right</strong> of the track to duck</li>
+                            <li>Tap to start, and to restart</li>
+                        </ul>
+                    </div>
+                    <div class="col-sm-6">
+                        <h6 class="text-uppercase text-muted small">Keyboard</h6>
+                        <ul class="list-unstyled small mb-0">
+                            <li><kbd>Space</kbd> / <kbd>&uarr;</kbd> jump (hold for higher)</li>
+                            <li><kbd>&darr;</kbd> duck</li>
+                            <li><kbd>P</kbd> pause &middot; <kbd>R</kbd> restart</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="bg-dark text-white-50 py-4">
+        <div class="container">
+            <p class="mb-0">&copy; 2026 DevOps Demo Site</p>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    (function () {
+        'use strict';
+
+        var W = 800;
+        var H = 320;
+        var GROUND = 268;
+
+        var GRAVITY = 2600;
+        var GRAVITY_HELD = 1500;   // lighter while the jump button is held and still rising
+        var JUMP_V = -860;
+        var START_SPEED = 330;
+        var MAX_SPEED = 980;
+        var ACCEL = 9;             // pixels/second added to speed each second
+        var BEST_KEY = 'runner-best';
+
+        var canvas = document.getElementById('track');
+        var ctx = canvas.getContext('2d');
+        var playfield = document.getElementById('playfield');
+
+        var scoreEl = document.getElementById('score');
+        var bestEl = document.getElementById('best');
+        var speedEl = document.getElementById('speed');
+        var pauseBtn = document.getElementById('pauseBtn');
+        var restartBtn = document.getElementById('restartBtn');
+
+        var player, obstacles, clouds, dashes;
+        var speed, score, best, state, spawnIn;
+        var holdingJump, ducking;
+        var lastTime, rafId;
+
+        function readBest() {
+            try {
+                return parseInt(window.localStorage.getItem(BEST_KEY), 10) || 0;
+            } catch (e) {
+                return 0;   // private mode / blocked storage
+            }
+        }
+
+        function writeBest(value) {
+            try {
+                window.localStorage.setItem(BEST_KEY, String(value));
+            } catch (e) {
+                /* nothing to do: the score just will not persist */
+            }
+        }
+
+        function reset() {
+            player = { x: 90, y: GROUND, vy: 0, w: 34, h: 48, onGround: true, run: 0 };
+            obstacles = [];
+            clouds = [
+                { x: 160, y: 60, s: 0.3 },
+                { x: 460, y: 95, s: 0.45 },
+                { x: 700, y: 48, s: 0.25 }
+            ];
+            dashes = [];
+            for (var i = 0; i < 24; i++) {
+                dashes.push({ x: Math.random() * W, w: 8 + Math.random() * 22 });
+            }
+            speed = START_SPEED;
+            score = 0;
+            best = readBest();
+            spawnIn = 0.9;
+            holdingJump = false;
+            ducking = false;
+            state = 'ready';
+            lastTime = null;
+            pauseBtn.disabled = false;
+            pauseBtn.textContent = 'Pause';
+            updateStats();
+            draw();
+            if (rafId) { cancelAnimationFrame(rafId); }
+            rafId = requestAnimationFrame(loop);
+        }
+
+        function updateStats() {
+            scoreEl.textContent = Math.floor(score);
+            bestEl.textContent = best;
+            speedEl.textContent = (speed / START_SPEED).toFixed(1) + '×';
+        }
+
+        function spawnObstacle() {
+            // Flying drones only once the run is quick enough to make ducking fair.
+            var flying = speed > START_SPEED * 1.35 && Math.random() < 0.3;
+            if (flying) {
+                var low = Math.random() < 0.6;
+                obstacles.push({
+                    x: W + 20,
+                    y: low ? GROUND - 54 : GROUND - 96,
+                    w: 42,
+                    h: 24,
+                    flying: true,
+                    wing: 0
+                });
+            } else {
+                var h = 34 + Math.random() * 30;
+                var w = 18 + Math.random() * 18;
+                obstacles.push({ x: W + 20, y: GROUND - h, w: w, h: h, flying: false });
+            }
+
+            // Gap scales with speed so the next obstacle is always reachable.
+            var travel = 300 + Math.random() * 260;
+            spawnIn = travel / speed;
+        }
+
+        function startJump() {
+            if (!player.onGround) { return; }
+            player.vy = JUMP_V;
+            player.onGround = false;
+            ducking = false;
+        }
+
+        function hitboxOf(p) {
+            // A little forgiveness so near-misses read as near-misses.
+            var h = ducking && p.onGround ? 26 : p.h;
+            return { x: p.x + 4, y: p.y - h + 2, w: p.w - 8, h: h - 4 };
+        }
+
+        function overlaps(a, b) {
+            return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+        }
+
+        function update(dt) {
+            speed = Math.min(MAX_SPEED, speed + ACCEL * dt);
+            score += speed * dt / 18;
+            if (score > best) {
+                best = Math.floor(score);
+                writeBest(best);
+            }
+
+            var g = (holdingJump && player.vy < 0) ? GRAVITY_HELD : GRAVITY;
+            if (ducking && !player.onGround) { g = GRAVITY * 1.8; }   // duck in mid-air to drop fast
+
+            player.vy += g * dt;
+            player.y += player.vy * dt;
+            if (player.y >= GROUND) {
+                player.y = GROUND;
+                player.vy = 0;
+                player.onGround = true;
+            }
+            player.run += speed * dt;
+
+            var i;
+            for (i = 0; i < dashes.length; i++) {
+                dashes[i].x -= speed * dt;
+                if (dashes[i].x + dashes[i].w < 0) {
+                    dashes[i].x = W + Math.random() * 60;
+                    dashes[i].w = 8 + Math.random() * 22;
+                }
+            }
+            for (i = 0; i < clouds.length; i++) {
+                clouds[i].x -= speed * clouds[i].s * dt;
+                if (clouds[i].x < -90) {
+                    clouds[i].x = W + Math.random() * 120;
+                    clouds[i].y = 40 + Math.random() * 70;
+                }
+            }
+
+            spawnIn -= dt;
+            if (spawnIn <= 0) { spawnObstacle(); }
+
+            var box = hitboxOf(player);
+            for (i = obstacles.length - 1; i >= 0; i--) {
+                var o = obstacles[i];
+                o.x -= speed * dt;
+                if (o.flying) { o.wing += dt * 12; }
+                if (overlaps(box, { x: o.x + 3, y: o.y + 3, w: o.w - 6, h: o.h - 6 })) {
+                    endRun();
+                    return;
+                }
+                if (o.x + o.w < -40) { obstacles.splice(i, 1); }
+            }
+
+            updateStats();
+        }
+
+        function endRun() {
+            state = 'over';
+            pauseBtn.disabled = true;
+            if (Math.floor(score) >= best) {
+                best = Math.floor(score);
+                writeBest(best);
+            }
+            updateStats();
+            draw();
+        }
+
+        function drawPlayer() {
+            var ducked = ducking && player.onGround;
+            var h = ducked ? 26 : player.h;
+            var w = ducked ? player.w + 14 : player.w;
+            var x = player.x;
+            var y = player.y - h;
+
+            ctx.fillStyle = '#42b642';
+            ctx.fillRect(x, y, w, h);
+            ctx.fillStyle = 'rgba(255, 255, 255, .22)';
+            ctx.fillRect(x + 3, y + 3, w - 6, 5);
+
+            // eye, so it reads as facing forward
+            ctx.fillStyle = '#111';
+            ctx.fillRect(x + w - 11, y + (ducked ? 7 : 10), 5, 5);
+
+            // legs: alternate while on the ground, tuck while airborne
+            ctx.fillStyle = '#2f8a2f';
+            if (player.onGround) {
+                var phase = Math.floor(player.run / 22) % 2;
+                ctx.fillRect(x + 4, GROUND - 8, 10, 8);
+                ctx.fillRect(x + w - 15, GROUND - 8, 10, 8);
+                ctx.fillStyle = '#111';
+                ctx.fillRect(phase ? x + 4 : x + w - 15, GROUND - 4, 10, 4);
+            } else {
+                ctx.fillRect(x + 5, player.y - 8, 9, 8);
+            }
+        }
+
+        function drawObstacle(o) {
+            if (o.flying) {
+                ctx.fillStyle = '#ef2029';
+                ctx.fillRect(o.x, o.y, o.w, o.h);
+                ctx.fillStyle = 'rgba(255, 255, 255, .25)';
+                var flap = Math.sin(o.wing) * 7;
+                ctx.fillRect(o.x + 6, o.y - 6 + flap, o.w - 12, 5);
+                ctx.fillStyle = '#111';
+                ctx.fillRect(o.x + o.w - 9, o.y + 8, 4, 4);
+            } else {
+                ctx.fillStyle = '#31c7ef';
+                ctx.fillRect(o.x, o.y, o.w, o.h);
+                ctx.fillStyle = 'rgba(255, 255, 255, .2)';
+                ctx.fillRect(o.x + 3, o.y + 3, o.w - 6, 5);
+            }
+        }
+
+        function centreText(title, subtitle) {
+            ctx.fillStyle = 'rgba(0, 0, 0, .72)';
+            ctx.fillRect(0, H / 2 - 56, W, 112);
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#fff';
+            ctx.font = '600 30px system-ui, sans-serif';
+            ctx.fillText(title, W / 2, H / 2 - 4);
+            ctx.font = '15px system-ui, sans-serif';
+            ctx.fillStyle = 'rgba(255, 255, 255, .72)';
+            ctx.fillText(subtitle, W / 2, H / 2 + 28);
+        }
+
+        function draw() {
+            ctx.fillStyle = '#111';
+            ctx.fillRect(0, 0, W, H);
+
+            ctx.fillStyle = 'rgba(255, 255, 255, .10)';
+            clouds.forEach(function (c) {
+                ctx.fillRect(c.x, c.y, 54, 9);
+                ctx.fillRect(c.x + 14, c.y - 8, 28, 8);
+            });
+
+            ctx.strokeStyle = 'rgba(255, 255, 255, .35)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(0, GROUND + 1);
+            ctx.lineTo(W, GROUND + 1);
+            ctx.stroke();
+
+            ctx.fillStyle = 'rgba(255, 255, 255, .18)';
+            dashes.forEach(function (d) {
+                ctx.fillRect(d.x, GROUND + 12, d.w, 3);
+            });
+
+            obstacles.forEach(drawObstacle);
+            drawPlayer();
+
+            if (state === 'ready') {
+                // Zone hints, shown only before the first input.
+                ctx.fillStyle = 'rgba(255, 255, 255, .06)';
+                ctx.fillRect(0, 0, W * 0.55, H);
+                ctx.textAlign = 'center';
+                ctx.font = '600 13px system-ui, sans-serif';
+                ctx.fillStyle = 'rgba(255, 255, 255, .45)';
+                ctx.fillText('TAP / HOLD  →  JUMP', W * 0.275, 30);
+                ctx.fillText('HOLD  →  DUCK', W * 0.775, 30);
+                centreText('Infinite Runner', 'Tap, or press Space, to start');
+            } else if (state === 'paused') {
+                centreText('Paused', 'Press P to resume');
+            } else if (state === 'over') {
+                centreText('Game over — ' + Math.floor(score), 'Tap, or press R, to run again');
+            }
+        }
+
+        function loop(time) {
+            rafId = requestAnimationFrame(loop);
+            if (state !== 'running') {
+                lastTime = time;
+                return;
+            }
+            if (lastTime === null) { lastTime = time; }
+            // Clamp dt so a backgrounded tab cannot teleport the player through an obstacle.
+            var dt = Math.min((time - lastTime) / 1000, 0.05);
+            lastTime = time;
+            update(dt);
+            if (state === 'running') { draw(); }
+        }
+
+        function setPaused(value) {
+            if (state === 'over' || state === 'ready') { return; }
+            state = value ? 'paused' : 'running';
+            pauseBtn.textContent = value ? 'Resume' : 'Pause';
+            draw();
+        }
+
+        // One entry point for every input device.
+        function primaryDown() {
+            if (state === 'ready') {
+                state = 'running';
+                holdingJump = true;
+                startJump();
+                return;
+            }
+            if (state === 'over') { reset(); return; }
+            if (state === 'paused') { setPaused(false); return; }
+            holdingJump = true;
+            startJump();
+        }
+
+        function primaryUp() {
+            holdingJump = false;
+        }
+
+        document.addEventListener('keydown', function (event) {
+            var key = event.key;
+            var handled = true;
+
+            if (key === ' ' || key === 'ArrowUp' || key === 'w' || key === 'W') {
+                if (!event.repeat) { primaryDown(); }
+            } else if (key === 'ArrowDown' || key === 's' || key === 'S') {
+                ducking = true;
+            } else if (key === 'r' || key === 'R') {
+                reset();
+            } else if (key === 'p' || key === 'P') {
+                setPaused(state !== 'paused');
+            } else {
+                handled = false;
+            }
+
+            if (handled) { event.preventDefault(); }
+        });
+
+        document.addEventListener('keyup', function (event) {
+            var key = event.key;
+            if (key === ' ' || key === 'ArrowUp' || key === 'w' || key === 'W') {
+                primaryUp();
+            } else if (key === 'ArrowDown' || key === 's' || key === 'S') {
+                ducking = false;
+            }
+        });
+
+        // Touch: left of the track jumps, right of it ducks, both for as long as held.
+        var touches = {};
+
+        function zoneOf(touch) {
+            var rect = canvas.getBoundingClientRect();
+            return (touch.clientX - rect.left) < rect.width * 0.55 ? 'jump' : 'duck';
+        }
+
+        playfield.addEventListener('touchstart', function (event) {
+            event.preventDefault();
+            for (var i = 0; i < event.changedTouches.length; i++) {
+                var t = event.changedTouches[i];
+                var zone = zoneOf(t);
+                touches[t.identifier] = zone;
+                if (zone === 'jump') {
+                    primaryDown();
+                } else if (state === 'ready' || state === 'over' || state === 'paused') {
+                    primaryDown();      // any tap starts or restarts
+                } else {
+                    ducking = true;
+                }
+            }
+            draw();
+        }, { passive: false });
+
+        playfield.addEventListener('touchmove', function (event) {
+            event.preventDefault();
+        }, { passive: false });
+
+        function releaseTouches(event) {
+            event.preventDefault();
+            for (var i = 0; i < event.changedTouches.length; i++) {
+                var t = event.changedTouches[i];
+                var zone = touches[t.identifier];
+                delete touches[t.identifier];
+                if (zone === 'jump') {
+                    primaryUp();
+                } else if (zone === 'duck') {
+                    ducking = false;
+                }
+            }
+        }
+
+        playfield.addEventListener('touchend', releaseTouches, { passive: false });
+        playfield.addEventListener('touchcancel', releaseTouches, { passive: false });
+
+        playfield.addEventListener('contextmenu', function (event) {
+            event.preventDefault();
+        });
+
+        // Mouse, for anyone playing on a desktop without a keyboard.
+        canvas.addEventListener('mousedown', function (event) {
+            event.preventDefault();
+            primaryDown();
+        });
+        document.addEventListener('mouseup', primaryUp);
+
+        // A backgrounded tab should not keep running into obstacles unattended.
+        document.addEventListener('visibilitychange', function () {
+            if (document.hidden && state === 'running') { setPaused(true); }
+        });
+
+        pauseBtn.addEventListener('click', function () {
+            setPaused(state !== 'paused');
+            pauseBtn.blur();
+        });
+
+        restartBtn.addEventListener('click', function () {
+            reset();
+            restartBtn.blur();
+        });
+
+        reset();
+    }());
+    </script>
+</body>
+</html>

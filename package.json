@@ -1,0 +1,19 @@
+{
+  "name": "devops-october-2026-site-tests",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Browser end-to-end tests for the webfiles site. Deliberately outside webfiles/, which deploy.bat and CI copy wholesale to the live VM.",
+  "scripts": {
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "test:headed": "playwright test --headed",
+    "test:desktop": "playwright test --project=chromium",
+    "test:mobile": "playwright test --project=mobile",
+    "lint:html": "htmlhint \"webfiles/**/*.html\""
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.1",
+    "json-server": "0.16.3",
+    "htmlhint": "^1.1.4"
+  }
+}

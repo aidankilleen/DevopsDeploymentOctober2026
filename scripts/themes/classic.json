@@ -1,0 +1,17 @@
+{
+    "name": "Classic",
+    "face": "#F5F1E8",
+    "face_alpha": 255,
+    "outer_shadow": "#000000",
+    "outer_shadow_alpha": 80,
+    "border": "#403C36",
+    "hour_markers": "#292725",
+    "minute_markers": "#78736B",
+    "numbers": "#292725",
+    "hour_hand": "#202020",
+    "minute_hand": "#303030",
+    "second_hand": "#B42025",
+    "centre_outer": "#B42025",
+    "centre_inner": "#202020",
+    "font": "Georgia"
+}

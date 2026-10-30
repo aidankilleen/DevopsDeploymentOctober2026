@@ -1,0 +1,17 @@
+{
+    "name": "Midnight",
+    "face": "#191B1F",
+    "face_alpha": 245,
+    "outer_shadow": "#000000",
+    "outer_shadow_alpha": 100,
+    "border": "#6E737D",
+    "hour_markers": "#EBEBF0",
+    "minute_markers": "#787D87",
+    "numbers": "#E1E1E6",
+    "hour_hand": "#F0F0F5",
+    "minute_hand": "#DCE1EB",
+    "second_hand": "#FF4B4B",
+    "centre_outer": "#FF4B4B",
+    "centre_inner": "#EBEBF0",
+    "font": "Segoe UI"
+}

@@ -1,0 +1,17 @@
+{
+    "name": "Solarized",
+    "face": "#002B36",
+    "face_alpha": 250,
+    "outer_shadow": "#00191F",
+    "outer_shadow_alpha": 120,
+    "border": "#586E75",
+    "hour_markers": "#EEE8D5",
+    "minute_markers": "#657B83",
+    "numbers": "#EEE8D5",
+    "hour_hand": "#FDF6E3",
+    "minute_hand": "#93A1A1",
+    "second_hand": "#2AA198",
+    "centre_outer": "#2AA198",
+    "centre_inner": "#FDF6E3",
+    "font": "Segoe UI"
+}

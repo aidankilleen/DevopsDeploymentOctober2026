@@ -1,3 +1,8 @@
 CLAUDE.md
 commands.txt
 
+# Playwright / Node test tooling (tests live outside webfiles so they are never deployed)
+node_modules/
+test-results/
+playwright-report/
+playwright/.cache/

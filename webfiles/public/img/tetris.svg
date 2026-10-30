@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 360" width="600" height="360" role="img" aria-label="Tetris">
+  <rect width="600" height="360" fill="#111"/>
+  <g stroke="rgba(255,255,255,.06)" stroke-width="1">
+    <path d="M60 .5V360M120 .5V360M180 .5V360M240 .5V360M300 .5V360M360 .5V360M420 .5V360M480 .5V360M540 .5V360"/>
+    <path d="M.5 60H600M.5 120H600M.5 180H600M.5 240H600M.5 300H600"/>
+  </g>
+  <g>
+    <!-- I piece -->
+    <g fill="#31c7ef">
+      <rect x="62" y="62" width="56" height="56" rx="4"/>
+      <rect x="122" y="62" width="56" height="56" rx="4"/>
+      <rect x="182" y="62" width="56" height="56" rx="4"/>
+      <rect x="242" y="62" width="56" height="56" rx="4"/>
+    </g>
+    <!-- O piece -->
+    <g fill="#f7d308">
+      <rect x="422" y="62" width="56" height="56" rx="4"/>
+      <rect x="482" y="62" width="56" height="56" rx="4"/>
+      <rect x="422" y="122" width="56" height="56" rx="4"/>
+      <rect x="482" y="122" width="56" height="56" rx="4"/>
+    </g>
+    <!-- T piece -->
+    <g fill="#ad4d9c">
+      <rect x="182" y="182" width="56" height="56" rx="4"/>
+      <rect x="122" y="242" width="56" height="56" rx="4"/>
+      <rect x="182" y="242" width="56" height="56" rx="4"/>
+      <rect x="242" y="242" width="56" height="56" rx="4"/>
+    </g>
+    <!-- L piece -->
+    <g fill="#ef7921">
+      <rect x="2" y="182" width="56" height="56" rx="4"/>
+      <rect x="2" y="242" width="56" height="56" rx="4"/>
+      <rect x="2" y="302" width="56" height="56" rx="4"/>
+      <rect x="62" y="302" width="56" height="56" rx="4"/>
+    </g>
+    <!-- S piece -->
+    <g fill="#42b642">
+      <rect x="362" y="242" width="56" height="56" rx="4"/>
+      <rect x="422" y="242" width="56" height="56" rx="4"/>
+      <rect x="302" y="302" width="56" height="56" rx="4"/>
+      <rect x="362" y="302" width="56" height="56" rx="4"/>
+    </g>
+    <!-- Z piece -->
+    <g fill="#ef2029">
+      <rect x="482" y="242" width="56" height="56" rx="4"/>
+      <rect x="542" y="242" width="56" height="56" rx="4"/>
+      <rect x="542" y="302" width="56" height="56" rx="4"/>
+      <rect x="482" y="182" width="56" height="56" rx="4"/>
+    </g>
+    <!-- J piece -->
+    <g fill="#5a65ad">
+      <rect x="302" y="62" width="56" height="56" rx="4"/>
+      <rect x="302" y="122" width="56" height="56" rx="4"/>
+      <rect x="242" y="122" width="56" height="56" rx="4"/>
+      <rect x="182" y="122" width="56" height="56" rx="4"/>
+    </g>
+  </g>
+  <g fill="rgba(255,255,255,.18)">
+    <rect x="68" y="68" width="44" height="7" rx="3"/>
+    <rect x="428" y="68" width="44" height="7" rx="3"/>
+    <rect x="188" y="188" width="44" height="7" rx="3"/>
+    <rect x="8" y="188" width="44" height="7" rx="3"/>
+  </g>
+</svg>

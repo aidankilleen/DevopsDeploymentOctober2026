@@ -588,3 +588,168 @@ def test_position_outside_clock_is_not_resize_area(
     )
 
     assert analog_clock.is_near_edge(position) is False
+
+# ============================================================
+# Theme tests
+# ============================================================
+
+def test_default_theme_is_midnight():
+    assert pyclock.DEFAULT_CONFIG["theme"] == "midnight"
+
+
+def test_load_missing_theme_uses_default(
+    tmp_path,
+    monkeypatch
+):
+    themes_dir = tmp_path / "themes"
+
+    monkeypatch.setattr(
+        pyclock,
+        "THEMES_DIR",
+        themes_dir
+    )
+
+    theme = pyclock.load_theme(
+        "does_not_exist"
+    )
+
+    assert theme == pyclock.DEFAULT_THEME
+
+
+def test_load_custom_theme(
+    tmp_path,
+    monkeypatch
+):
+    themes_dir = tmp_path / "themes"
+    themes_dir.mkdir()
+
+    theme_file = themes_dir / "test_theme.json"
+
+    theme_file.write_text(
+        json.dumps({
+            "name": "Test Theme",
+            "face": "#123456",
+            "second_hand": "#ABCDEF"
+        }),
+        encoding="utf-8"
+    )
+
+    monkeypatch.setattr(
+        pyclock,
+        "THEMES_DIR",
+        themes_dir
+    )
+
+    theme = pyclock.load_theme(
+        "test_theme"
+    )
+
+    assert theme["name"] == "Test Theme"
+    assert theme["face"] == "#123456"
+    assert theme["second_hand"] == "#ABCDEF"
+
+    # Unspecified properties should inherit defaults.
+    assert (
+        theme["hour_hand"]
+        == pyclock.DEFAULT_THEME["hour_hand"]
+    )
+
+
+def test_available_themes(
+    tmp_path,
+    monkeypatch
+):
+    themes_dir = tmp_path / "themes"
+    themes_dir.mkdir()
+
+    (themes_dir / "one.json").write_text(
+        json.dumps({
+            "name": "Theme One"
+        }),
+        encoding="utf-8"
+    )
+
+    (themes_dir / "two.json").write_text(
+        json.dumps({
+            "name": "Theme Two"
+        }),
+        encoding="utf-8"
+    )
+
+    monkeypatch.setattr(
+        pyclock,
+        "THEMES_DIR",
+        themes_dir
+    )
+
+    themes = pyclock.available_themes()
+
+    assert ("one", "Theme One") in themes
+    assert ("two", "Theme Two") in themes
+
+
+def test_invalid_theme_file_is_ignored(
+    tmp_path,
+    monkeypatch
+):
+    themes_dir = tmp_path / "themes"
+    themes_dir.mkdir()
+
+    (themes_dir / "broken.json").write_text(
+        "NOT JSON",
+        encoding="utf-8"
+    )
+
+    monkeypatch.setattr(
+        pyclock,
+        "THEMES_DIR",
+        themes_dir
+    )
+
+    themes = pyclock.available_themes()
+
+    assert themes == []
+
+
+def test_set_theme(
+    analog_clock,
+    tmp_path,
+    monkeypatch
+):
+    themes_dir = tmp_path / "themes"
+    themes_dir.mkdir()
+
+    config_file = tmp_path / "clock_config.json"
+
+    (themes_dir / "blue.json").write_text(
+        json.dumps({
+            "name": "Blue",
+            "face": "#0000FF"
+        }),
+        encoding="utf-8"
+    )
+
+    monkeypatch.setattr(
+        pyclock,
+        "THEMES_DIR",
+        themes_dir
+    )
+
+    monkeypatch.setattr(
+        pyclock,
+        "CONFIG_FILE",
+        config_file
+    )
+
+    analog_clock.set_theme("blue")
+
+    assert analog_clock.theme_name == "blue"
+    assert analog_clock.theme["face"] == "#0000FF"
+
+    saved = json.loads(
+        config_file.read_text(
+            encoding="utf-8"
+        )
+    )
+
+    assert saved["theme"] == "blue"    
