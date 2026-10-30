@@ -176,8 +176,8 @@ class AnalogClock(QWidget):
     def apply_window_flags(self):
 
         flags = (
-            Qt.WindowType.FramelessWindowHint
-            | Qt.WindowType.Tool
+            Qt.WindowType.Window
+            | Qt.WindowType.FramelessWindowHint
         )
 
         if self.always_on_top:
