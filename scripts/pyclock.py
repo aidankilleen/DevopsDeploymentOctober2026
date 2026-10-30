@@ -1,5 +1,7 @@
 import sys
 import math
+import json
+from pathlib import Path
 from datetime import datetime
 
 from PyQt6.QtCore import Qt, QTimer, QPoint
@@ -14,39 +16,209 @@ from PyQt6.QtGui import (
 from PyQt6.QtWidgets import QApplication, QWidget, QMenu
 
 
+# ---------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------
+
+CONFIG_FILE = Path(__file__).with_name("clock_config.json")
+
+DEFAULT_CONFIG = {
+    "x": 100,
+    "y": 100,
+    "size": 320,
+    "opacity": 1.0,
+    "always_on_top": True,
+}
+
+
+def load_config():
+    """
+    Load configuration from clock_config.json.
+
+    Missing values automatically fall back to defaults.
+    """
+
+    config = DEFAULT_CONFIG.copy()
+
+    if CONFIG_FILE.exists():
+        try:
+            with open(CONFIG_FILE, "r", encoding="utf-8") as file:
+                saved_config = json.load(file)
+
+            config.update(saved_config)
+
+        except (OSError, json.JSONDecodeError):
+            print("Could not read configuration file. Using defaults.")
+
+    return config
+
+
+def save_config(config):
+    """
+    Save configuration to clock_config.json.
+    """
+
+    try:
+        with open(CONFIG_FILE, "w", encoding="utf-8") as file:
+            json.dump(
+                config,
+                file,
+                indent=4
+            )
+
+    except OSError as error:
+        print(f"Could not save configuration: {error}")
+
+
+# ---------------------------------------------------------
+# Analogue clock
+# ---------------------------------------------------------
+
 class AnalogClock(QWidget):
+
     def __init__(self):
         super().__init__()
 
-        self.clock_size = 320
+        self.config = load_config()
+
         self.drag_position = QPoint()
-        self.always_on_top = True
 
-        self.setWindowTitle("Analogue Clock")
-        self.resize(self.clock_size, self.clock_size)
+        self.resizing = False
+        self.resize_start_position = QPoint()
+        self.resize_start_size = 0
 
-        # Make the window frameless and always on top
-        self.setWindowFlags(
-            Qt.WindowType.FramelessWindowHint
-            | Qt.WindowType.WindowStaysOnTopHint
-            | Qt.WindowType.Tool
+        self.resize_margin = 18
+
+        self.always_on_top = bool(
+            self.config["always_on_top"]
         )
 
-        # Allow transparent areas around the circular clock
+        self.setWindowTitle("Analogue Clock")
+
+        # -------------------------------------------------
+        # Window flags
+        # -------------------------------------------------
+
+        self.apply_window_flags()
+
         self.setAttribute(
             Qt.WidgetAttribute.WA_TranslucentBackground
         )
 
-        # Timer drives the animation
+        self.setMouseTracking(True)
+
+        # -------------------------------------------------
+        # Restore size
+        # -------------------------------------------------
+
+        size = int(self.config["size"])
+
+        # Prevent bad config values making the clock vanish
+        size = max(140, min(size, 1000))
+
+        self.setMinimumSize(140, 140)
+
+        self.resize(
+            size,
+            size
+        )
+
+        # -------------------------------------------------
+        # Restore position
+        # -------------------------------------------------
+
+        self.move(
+            int(self.config["x"]),
+            int(self.config["y"])
+        )
+
+        # -------------------------------------------------
+        # Restore opacity
+        # -------------------------------------------------
+
+        opacity = float(
+            self.config["opacity"]
+        )
+
+        opacity = max(
+            0.2,
+            min(opacity, 1.0)
+        )
+
+        self.setWindowOpacity(opacity)
+
+        # -------------------------------------------------
+        # Save delay
+        #
+        # Moving/resizing can generate lots of events.
+        # Rather than writing the JSON file constantly,
+        # wait briefly until the activity settles.
+        # -------------------------------------------------
+
+        self.save_timer = QTimer(self)
+        self.save_timer.setSingleShot(True)
+        self.save_timer.timeout.connect(
+            self.save_settings
+        )
+
+        # -------------------------------------------------
+        # Clock animation
+        # -------------------------------------------------
+
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update)
-        self.timer.start(16)  # ~60 FPS
+        self.timer.start(16)
+
+    # ---------------------------------------------------------
+    # Window flags
+    # ---------------------------------------------------------
+
+    def apply_window_flags(self):
+
+        flags = (
+            Qt.WindowType.FramelessWindowHint
+            | Qt.WindowType.Tool
+        )
+
+        if self.always_on_top:
+            flags |= Qt.WindowType.WindowStaysOnTopHint
+
+        self.setWindowFlags(flags)
+
+    # ---------------------------------------------------------
+    # Configuration saving
+    # ---------------------------------------------------------
+
+    def schedule_save(self):
+        """
+        Wait 400 ms before actually writing the config.
+
+        Each new movement restarts the timer.
+        """
+
+        self.save_timer.start(400)
+
+    def save_settings(self):
+
+        self.config = {
+            "x": self.x(),
+            "y": self.y(),
+            "size": self.width(),
+            "opacity": round(
+                self.windowOpacity(),
+                2
+            ),
+            "always_on_top": self.always_on_top,
+        }
+
+        save_config(self.config)
 
     # ---------------------------------------------------------
     # Drawing
     # ---------------------------------------------------------
 
     def paintEvent(self, event):
+
         painter = QPainter(self)
 
         painter.setRenderHint(
@@ -56,7 +228,10 @@ class AnalogClock(QWidget):
         width = self.width()
         height = self.height()
 
-        size = min(width, height)
+        size = min(
+            width,
+            height
+        )
 
         painter.translate(
             width / 2,
@@ -64,23 +239,34 @@ class AnalogClock(QWidget):
         )
 
         scale = size / 320.0
-        painter.scale(scale, scale)
+
+        painter.scale(
+            scale,
+            scale
+        )
 
         self.draw_face(painter)
         self.draw_numbers(painter)
         self.draw_hands(painter)
         self.draw_centre(painter)
 
+    # ---------------------------------------------------------
+
     def draw_face(self, painter):
+
         radius = 145
 
-        # Shadow-like outer ring
         painter.setPen(
-            QPen(QColor(0, 0, 0, 100), 8)
+            QPen(
+                QColor(0, 0, 0, 100),
+                8
+            )
         )
 
         painter.setBrush(
-            QBrush(QColor(25, 27, 31, 245))
+            QBrush(
+                QColor(25, 27, 31, 245)
+            )
         )
 
         painter.drawEllipse(
@@ -91,10 +277,16 @@ class AnalogClock(QWidget):
         )
 
         # Border
-        painter.setBrush(Qt.BrushStyle.NoBrush)
+
+        painter.setBrush(
+            Qt.BrushStyle.NoBrush
+        )
 
         painter.setPen(
-            QPen(QColor(110, 115, 125), 2)
+            QPen(
+                QColor(110, 115, 125),
+                2
+            )
         )
 
         painter.drawEllipse(
@@ -104,17 +296,25 @@ class AnalogClock(QWidget):
             (radius - 3) * 2
         )
 
-        # Minute/hour markers
+        # Markings
+
         for i in range(60):
 
             painter.save()
 
-            painter.rotate(i * 6)
+            painter.rotate(
+                i * 6
+            )
 
             if i % 5 == 0:
+
                 painter.setPen(
                     QPen(
-                        QColor(235, 235, 240),
+                        QColor(
+                            235,
+                            235,
+                            240
+                        ),
                         3,
                         Qt.PenStyle.SolidLine,
                         Qt.PenCapStyle.RoundCap
@@ -129,9 +329,14 @@ class AnalogClock(QWidget):
                 )
 
             else:
+
                 painter.setPen(
                     QPen(
-                        QColor(120, 125, 135),
+                        QColor(
+                            120,
+                            125,
+                            135
+                        ),
                         1
                     )
                 )
@@ -145,14 +350,27 @@ class AnalogClock(QWidget):
 
             painter.restore()
 
+    # ---------------------------------------------------------
+
     def draw_numbers(self, painter):
+
         painter.setPen(
-            QColor(225, 225, 230)
+            QColor(
+                225,
+                225,
+                230
+            )
         )
 
-        font = QFont("Segoe UI")
+        font = QFont(
+            "Segoe UI"
+        )
+
         font.setPointSize(13)
-        font.setWeight(QFont.Weight.Medium)
+
+        font.setWeight(
+            QFont.Weight.Medium
+        )
 
         painter.setFont(font)
 
@@ -164,69 +382,85 @@ class AnalogClock(QWidget):
                 number * 30 - 90
             )
 
-            x = math.cos(angle) * radius
-            y = math.sin(angle) * radius
+            x = (
+                math.cos(angle)
+                * radius
+            )
 
-            rect_width = 34
-            rect_height = 28
+            y = (
+                math.sin(angle)
+                * radius
+            )
 
             painter.drawText(
-                int(x - rect_width / 2),
-                int(y - rect_height / 2),
-                rect_width,
-                rect_height,
+                int(x - 17),
+                int(y - 14),
+                34,
+                28,
                 Qt.AlignmentFlag.AlignCenter,
                 str(number)
             )
 
+    # ---------------------------------------------------------
+
     def draw_hands(self, painter):
+
         now = datetime.now()
 
-        hour = now.hour % 12
-        minute = now.minute
-        second = now.second
-        microsecond = now.microsecond
-
-        # Smooth fractional seconds
-        seconds = second + microsecond / 1_000_000
+        seconds = (
+            now.second
+            + now.microsecond
+            / 1_000_000
+        )
 
         minutes = (
-            minute
+            now.minute
             + seconds / 60
         )
 
         hours = (
-            hour
+            (now.hour % 12)
             + minutes / 60
         )
 
-        # Hour hand
         self.draw_hand(
             painter,
-            angle=hours * 30,
-            length=68,
-            width=7,
-            colour=QColor(240, 240, 245)
+            hours * 30,
+            68,
+            7,
+            QColor(
+                240,
+                240,
+                245
+            )
         )
 
-        # Minute hand
         self.draw_hand(
             painter,
-            angle=minutes * 6,
-            length=100,
-            width=5,
-            colour=QColor(220, 225, 235)
+            minutes * 6,
+            100,
+            5,
+            QColor(
+                220,
+                225,
+                235
+            )
         )
 
-        # Second hand
         self.draw_hand(
             painter,
-            angle=seconds * 6,
-            length=118,
-            width=2,
-            colour=QColor(255, 75, 75),
-            tail=25
+            seconds * 6,
+            118,
+            2,
+            QColor(
+                255,
+                75,
+                75
+            ),
+            25
         )
+
+    # ---------------------------------------------------------
 
     def draw_hand(
         self,
@@ -237,18 +471,19 @@ class AnalogClock(QWidget):
         colour,
         tail=0
     ):
+
         painter.save()
 
         painter.rotate(angle)
 
-        pen = QPen(
-            colour,
-            width,
-            Qt.PenStyle.SolidLine,
-            Qt.PenCapStyle.RoundCap
+        painter.setPen(
+            QPen(
+                colour,
+                width,
+                Qt.PenStyle.SolidLine,
+                Qt.PenCapStyle.RoundCap
+            )
         )
-
-        painter.setPen(pen)
 
         painter.drawLine(
             0,
@@ -259,11 +494,20 @@ class AnalogClock(QWidget):
 
         painter.restore()
 
+    # ---------------------------------------------------------
+
     def draw_centre(self, painter):
-        painter.setPen(Qt.PenStyle.NoPen)
+
+        painter.setPen(
+            Qt.PenStyle.NoPen
+        )
 
         painter.setBrush(
-            QColor(255, 75, 75)
+            QColor(
+                255,
+                75,
+                75
+            )
         )
 
         painter.drawEllipse(
@@ -274,7 +518,11 @@ class AnalogClock(QWidget):
         )
 
         painter.setBrush(
-            QColor(235, 235, 240)
+            QColor(
+                235,
+                235,
+                240
+            )
         )
 
         painter.drawEllipse(
@@ -285,47 +533,237 @@ class AnalogClock(QWidget):
         )
 
     # ---------------------------------------------------------
-    # Window dragging
+    # Resize detection
+    # ---------------------------------------------------------
+
+    def is_near_edge(self, position):
+
+        centre_x = (
+            self.width() / 2
+        )
+
+        centre_y = (
+            self.height() / 2
+        )
+
+        dx = (
+            position.x()
+            - centre_x
+        )
+
+        dy = (
+            position.y()
+            - centre_y
+        )
+
+        distance = math.sqrt(
+            dx * dx
+            + dy * dy
+        )
+
+        radius = (
+            min(
+                self.width(),
+                self.height()
+            ) / 2
+        )
+
+        return (
+            distance
+            >= radius
+            - self.resize_margin
+        )
+
+    # ---------------------------------------------------------
+    # Mouse press
     # ---------------------------------------------------------
 
     def mousePressEvent(self, event):
+
         if (
             event.button()
             == Qt.MouseButton.LeftButton
         ):
-            self.drag_position = (
-                event.globalPosition().toPoint()
-                - self.frameGeometry().topLeft()
-            )
+
+            if self.is_near_edge(
+                event.position()
+            ):
+
+                self.resizing = True
+
+                self.resize_start_position = (
+                    event
+                    .globalPosition()
+                    .toPoint()
+                )
+
+                self.resize_start_size = (
+                    self.width()
+                )
+
+            else:
+
+                self.resizing = False
+
+                self.drag_position = (
+                    event
+                    .globalPosition()
+                    .toPoint()
+                    - self.frameGeometry()
+                    .topLeft()
+                )
 
             event.accept()
 
+    # ---------------------------------------------------------
+    # Mouse movement
+    # ---------------------------------------------------------
+
     def mouseMoveEvent(self, event):
+
+        # Resize
+
+        if (
+            self.resizing
+            and event.buttons()
+            & Qt.MouseButton.LeftButton
+        ):
+
+            current = (
+                event
+                .globalPosition()
+                .toPoint()
+            )
+
+            delta = (
+                current
+                - self.resize_start_position
+            )
+
+            if (
+                abs(delta.x())
+                > abs(delta.y())
+            ):
+
+                change = delta.x()
+
+            else:
+
+                change = delta.y()
+
+            new_size = (
+                self.resize_start_size
+                + change
+            )
+
+            new_size = max(
+                140,
+                min(
+                    new_size,
+                    1000
+                )
+            )
+
+            self.resize(
+                new_size,
+                new_size
+            )
+
+            self.schedule_save()
+
+            event.accept()
+
+            return
+
+        # Move
+
         if (
             event.buttons()
             & Qt.MouseButton.LeftButton
         ):
+
             self.move(
-                event.globalPosition().toPoint()
+                event
+                .globalPosition()
+                .toPoint()
                 - self.drag_position
             )
+
+            self.schedule_save()
+
+            event.accept()
+
+            return
+
+        # Cursor
+
+        if self.is_near_edge(
+            event.position()
+        ):
+
+            centre_x = (
+                self.width()
+                / 2
+            )
+
+            centre_y = (
+                self.height()
+                / 2
+            )
+
+            dx = (
+                event.position().x()
+                - centre_x
+            )
+
+            dy = (
+                event.position().y()
+                - centre_y
+            )
+
+            if dx * dy >= 0:
+
+                self.setCursor(
+                    Qt.CursorShape.SizeFDiagCursor
+                )
+
+            else:
+
+                self.setCursor(
+                    Qt.CursorShape.SizeBDiagCursor
+                )
+
+        else:
+
+            self.setCursor(
+                Qt.CursorShape.ArrowCursor
+            )
+
+    # ---------------------------------------------------------
+
+    def mouseReleaseEvent(self, event):
+
+        if (
+            event.button()
+            == Qt.MouseButton.LeftButton
+        ):
+
+            self.resizing = False
+
+            # Save immediately after move/resize finishes
+            self.save_settings()
 
             event.accept()
 
     # ---------------------------------------------------------
-    # Double click
-    # ---------------------------------------------------------
-
-    def mouseDoubleClickEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
-            self.toggle_always_on_top()
-
-    # ---------------------------------------------------------
-    # Right-click menu
+    # Context menu
     # ---------------------------------------------------------
 
     def contextMenuEvent(self, event):
+
         menu = QMenu(self)
+
+        # Always on top
 
         top_action = QAction(
             "Always on top",
@@ -333,6 +771,7 @@ class AnalogClock(QWidget):
         )
 
         top_action.setCheckable(True)
+
         top_action.setChecked(
             self.always_on_top
         )
@@ -341,9 +780,45 @@ class AnalogClock(QWidget):
             self.toggle_always_on_top
         )
 
-        menu.addAction(top_action)
+        menu.addAction(
+            top_action
+        )
 
-        # Opacity submenu
+        # -------------------------------------------------
+        # Size
+        # -------------------------------------------------
+
+        size_menu = menu.addMenu(
+            "Size"
+        )
+
+        sizes = {
+            "Small": 200,
+            "Medium": 320,
+            "Large": 450,
+            "Extra Large": 600,
+        }
+
+        for name, size in sizes.items():
+
+            action = QAction(
+                f"{name} ({size}px)",
+                self
+            )
+
+            action.triggered.connect(
+                lambda checked=False, s=size:
+                self.set_clock_size(s)
+            )
+
+            size_menu.addAction(
+                action
+            )
+
+        # -------------------------------------------------
+        # Opacity
+        # -------------------------------------------------
+
         opacity_menu = menu.addMenu(
             "Opacity"
         )
@@ -354,24 +829,45 @@ class AnalogClock(QWidget):
             80,
             70,
             60,
-            50,
+            50
         ):
+
             action = QAction(
                 f"{percentage}%",
                 self
             )
 
             action.triggered.connect(
-                lambda checked,
-                p=percentage:
-                self.setWindowOpacity(
-                    p / 100
-                )
+                lambda checked=False, p=percentage:
+                self.set_opacity(p)
             )
 
-            opacity_menu.addAction(action)
+            opacity_menu.addAction(
+                action
+            )
 
         menu.addSeparator()
+
+        # -------------------------------------------------
+        # Open config file
+        # -------------------------------------------------
+
+        config_action = QAction(
+            "Show Config Location",
+            self
+        )
+
+        config_action.triggered.connect(
+            self.show_config_location
+        )
+
+        menu.addAction(
+            config_action
+        )
+
+        menu.addSeparator()
+
+        # Exit
 
         exit_action = QAction(
             "Exit",
@@ -379,52 +875,110 @@ class AnalogClock(QWidget):
         )
 
         exit_action.triggered.connect(
-            QApplication.quit
+            self.close
         )
 
-        menu.addAction(exit_action)
+        menu.addAction(
+            exit_action
+        )
 
         menu.exec(
             event.globalPos()
         )
 
+    # ---------------------------------------------------------
+
+    def set_clock_size(self, size):
+
+        self.resize(
+            size,
+            size
+        )
+
+        self.save_settings()
+
+    # ---------------------------------------------------------
+
+    def set_opacity(self, percentage):
+
+        opacity = (
+            percentage
+            / 100
+        )
+
+        self.setWindowOpacity(
+            opacity
+        )
+
+        self.save_settings()
+
+    # ---------------------------------------------------------
+
     def toggle_always_on_top(self):
+
         self.always_on_top = (
             not self.always_on_top
         )
 
-        flags = (
-            Qt.WindowType.FramelessWindowHint
-            | Qt.WindowType.Tool
-        )
-
-        if self.always_on_top:
-            flags |= (
-                Qt.WindowType.WindowStaysOnTopHint
-            )
-
         position = self.pos()
 
-        self.setWindowFlags(flags)
+        self.apply_window_flags()
 
         self.move(position)
+
         self.show()
 
+        self.save_settings()
+
     # ---------------------------------------------------------
-    # Keyboard
+
+    def show_config_location(self):
+
+        print(
+            f"Configuration: {CONFIG_FILE}"
+        )
+
+    # ---------------------------------------------------------
+    # Save when closing
+    # ---------------------------------------------------------
+
+    def closeEvent(self, event):
+        self.save_settings()
+
+        # Stop our timers
+        self.timer.stop()
+        self.save_timer.stop()
+
+        event.accept()
+
+        # Terminate the Qt application/event loop
+        QApplication.instance().quit()
+
     # ---------------------------------------------------------
 
     def keyPressEvent(self, event):
-        if event.key() == Qt.Key.Key_Escape:
+
+        if (
+            event.key()
+            == Qt.Key.Key_Escape
+        ):
+
             self.close()
 
 
+# ---------------------------------------------------------
+# Start application
+# ---------------------------------------------------------
 if __name__ == "__main__":
+
     app = QApplication(sys.argv)
 
     app.setApplicationName(
         "Desktop Analogue Clock"
     )
+
+    # Ensure closing the clock terminates Python
+    app.setQuitOnLastWindowClosed(True)
 
     clock = AnalogClock()
     clock.show()
