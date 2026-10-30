@@ -9,6 +9,7 @@
     "test:headed": "playwright test --headed",
     "test:desktop": "playwright test --project=chromium",
     "test:mobile": "playwright test --project=mobile",
+    "test:smoke": "playwright test --config=playwright.smoke.config.js",
     "lint:html": "htmlhint \"webfiles/**/*.html\""
   },
   "devDependencies": {

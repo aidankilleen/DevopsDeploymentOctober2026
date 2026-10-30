@@ -4,6 +4,9 @@ const { defineConfig, devices } = require('@playwright/test');
 // Nothing here touches the live site.
 module.exports = defineConfig({
     testDir: './tests',
+    // Smoke specs target the deployed site and have their own config
+    // (playwright.smoke.config.js); they must never run as part of the local suite.
+    testIgnore: '**/smoke/**',
     fullyParallel: true,
     forbidOnly: !!process.env.CI,
     retries: 0,
